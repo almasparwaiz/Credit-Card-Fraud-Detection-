@@ -28,6 +28,10 @@ Uses a powerful **Stacking Classifier** trained for high fraud detection perform
 
 ---
 
+## Live Demo
+
+https://credit-card-fraud-detection-appi.streamlit.app/
+
 ## 🧠 Machine Learning Model
 
 This project uses:
