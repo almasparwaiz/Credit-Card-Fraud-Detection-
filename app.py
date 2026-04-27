@@ -1,30 +1,27 @@
 # app.py
 # Run with:
-# streamlit run "D:\Credit Card Fraud Detection app\backend\app.py"
+# streamlit run app.py
 
-from pathlib import Path
 import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
 
 # ==========================================================
-# PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
+# PAGE CONFIG
 # ==========================================================
 st.set_page_config(
     page_title="Credit Card Fraud Detection",
     page_icon="💳",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 # ==========================================================
-# PROJECT DIRECTORY CONFIGURATION
+# MODEL FILES (NO BASE_DIR)
+# Keep .joblib files in same folder as app.py
 # ==========================================================
-BASE_DIR = Path(r"D:\Credit Card Fraud Detection app\backend")
-
-MODEL_PATH = BASE_DIR / "stacking_fraud_detection_model.joblib"
-SCALER_PATH = BASE_DIR / "fraud_detection_scaler.joblib"
+MODEL_PATH = "stacking_fraud_detection_model.joblib"
+SCALER_PATH = "fraud_detection_scaler.joblib"
 
 # ==========================================================
 # FEATURE DEFINITIONS
@@ -45,41 +42,27 @@ MODEL_FEATURES = [
 ]
 
 # ==========================================================
-# LOAD MODEL & SCALER
+# LOAD MODEL
 # ==========================================================
 @st.cache_resource
 def load_artifacts():
-    """
-    Load trained model and scaler only once.
-    """
     try:
         model = joblib.load(MODEL_PATH)
         scaler = joblib.load(SCALER_PATH)
         return model, scaler
 
-    except Exception as error:
-        st.error("❌ Unable to load model files.")
-        st.error(str(error))
+    except Exception as e:
+        st.error("❌ Model files not found.")
+        st.error(str(e))
         st.stop()
-
 
 model, scaler = load_artifacts()
 
 # ==========================================================
 # FEATURE ENGINEERING
 # ==========================================================
-def feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Generate engineered features exactly like training pipeline.
-    """
+def feature_engineering(df):
     df = df.copy()
-
-    missing_cols = [col for col in BASE_FEATURES if col not in df.columns]
-
-    if missing_cols:
-        raise ValueError(
-            f"Missing required columns: {', '.join(missing_cols)}"
-        )
 
     df["Amount_V1_Interaction"] = df["Amount"] * df["V1"]
     df["Amount_V2_Interaction"] = df["Amount"] * df["V2"]
@@ -88,30 +71,24 @@ def feature_engineering(df: pd.DataFrame) -> pd.DataFrame:
 
     df["Amount_squared"] = df["Amount"] ** 2
     df["Amount_cubed"] = df["Amount"] ** 3
-
-    # Avoid divide by zero
     df["V1_div_V2"] = df["V1"] / (df["V2"] + 1e-6)
 
     return df
-
 
 # ==========================================================
 # HEADER
 # ==========================================================
 st.title("💳 Credit Card Fraud Detection System")
 
-st.markdown(
-    """
-Detect suspicious transactions instantly using a high-performance
-**Stacking Classifier Machine Learning Model** built for fraud analytics.
-"""
+st.write(
+    "Detect suspicious transactions instantly using an advanced "
+    "Stacking Classifier model."
 )
 
 # ==========================================================
 # INPUT METHOD
 # ==========================================================
 st.markdown("---")
-st.header("📥 Input Transaction Data")
 
 input_method = st.radio(
     "Choose Input Method",
@@ -123,7 +100,7 @@ processed_scaled = None
 raw_data = None
 
 # ==========================================================
-# CSV MODE
+# CSV INPUT
 # ==========================================================
 if input_method == "Upload CSV File":
 
@@ -150,29 +127,27 @@ if input_method == "Upload CSV File":
                 columns=MODEL_FEATURES
             )
 
-            st.success("✅ File processed successfully.")
+            st.success("✅ File ready for prediction.")
 
-        except Exception as error:
-            st.error("❌ Error processing file.")
-            st.error(str(error))
+        except Exception as e:
+            st.error(str(e))
 
 # ==========================================================
-# MANUAL ENTRY MODE
+# MANUAL INPUT
 # ==========================================================
 else:
-    st.subheader("Enter Transaction Details")
 
     inputs = {}
     cols = st.columns(4)
 
-    for idx, feature in enumerate(BASE_FEATURES):
-        with cols[idx % 4]:
+    for i, feature in enumerate(BASE_FEATURES):
+
+        with cols[i % 4]:
+
             if feature == "Amount":
                 inputs[feature] = st.number_input(
                     feature,
-                    value=100.0,
-                    step=1.0,
-                    format="%.2f"
+                    value=100.0
                 )
             else:
                 inputs[feature] = st.number_input(
@@ -183,24 +158,18 @@ else:
 
     raw_data = pd.DataFrame([inputs])
 
-    try:
-        engineered = feature_engineering(raw_data)
+    engineered = feature_engineering(raw_data)
 
-        X = engineered[MODEL_FEATURES]
-        scaled = scaler.transform(X)
+    X = engineered[MODEL_FEATURES]
+    scaled = scaler.transform(X)
 
-        processed_scaled = pd.DataFrame(
-            scaled,
-            columns=MODEL_FEATURES
-        )
-
-        st.success("✅ Manual transaction ready for prediction.")
-
-    except Exception as error:
-        st.error(str(error))
+    processed_scaled = pd.DataFrame(
+        scaled,
+        columns=MODEL_FEATURES
+    )
 
 # ==========================================================
-# PREDICTION SECTION
+# PREDICTION
 # ==========================================================
 st.markdown("---")
 
@@ -212,46 +181,34 @@ if processed_scaled is not None:
             predictions = model.predict(processed_scaled)
             probabilities = model.predict_proba(processed_scaled)[:, 1]
 
+            fraud_percent = probabilities * 100
+
             st.header("📊 Prediction Results")
 
-            # -----------------------------------------
-            # BULK CSV MODE
-            # -----------------------------------------
+            # CSV MODE
             if input_method == "Upload CSV File":
 
                 result_df = raw_data.copy()
                 result_df["Predicted_Class"] = predictions
-                result_df["Fraud_Probability"] = probabilities.round(4)
+                result_df["Fraud_Probability (%)"] = fraud_percent.round(2)
 
-                st.dataframe(
-                    result_df,
-                    use_container_width=True
-                )
-
-                fraud_cases = int(result_df["Predicted_Class"].sum())
-                total_rows = len(result_df)
-
-                st.warning(
-                    f"⚠️ Detected {fraud_cases} suspicious transactions out of {total_rows}"
-                )
+                st.dataframe(result_df, use_container_width=True)
 
                 csv = result_df.to_csv(index=False).encode("utf-8")
 
                 st.download_button(
-                    label="⬇ Download Results CSV",
-                    data=csv,
-                    file_name="fraud_results.csv",
-                    mime="text/csv",
+                    "⬇ Download Results CSV",
+                    csv,
+                    "fraud_results.csv",
+                    "text/csv",
                     use_container_width=True
                 )
 
-            # -----------------------------------------
-            # SINGLE ENTRY MODE
-            # -----------------------------------------
+            # MANUAL MODE
             else:
 
                 pred = predictions[0]
-                prob = probabilities[0]
+                prob = fraud_percent[0]
 
                 col1, col2 = st.columns(2)
 
@@ -264,20 +221,19 @@ if processed_scaled is not None:
                 with col2:
                     st.metric(
                         "Fraud Probability",
-                        f"{prob:.4f}"
+                        f"{prob:.2f}%"
                     )
 
                 if pred == 1:
-                    st.error("🚨 High Risk Transaction Detected")
+                    st.error("🚨 High Risk Transaction")
                 else:
                     st.success("✅ Legitimate Transaction")
 
-        except Exception as error:
-            st.error("Prediction failed.")
-            st.error(str(error))
+        except Exception as e:
+            st.error(str(e))
 
 # ==========================================================
 # FOOTER
 # ==========================================================
 st.markdown("---")
-st.caption("Developed with ❤️ using Streamlit | Professional ML Deployment")
+st.caption("Developed with ❤️ using Streamlit")
