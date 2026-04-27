@@ -12,7 +12,7 @@ It supports:
 
 ---
 
-# 🚀 Live Features
+## 🚀 Live Features
 
 ### 🔹 Manual Transaction Testing
 Enter transaction variables (`V1` to `V28` + Amount) and instantly receive fraud prediction.
