@@ -45,7 +45,7 @@ https://credit-card-fraud-detection-appi.streamlit.app/
 
 Real-time single transaction prediction
 Bulk CSV fraud detection
-Fraud probability scoring (0.00 – 1.00)
+Fraud probability scoring (0 – 100)
 End-to-end ML pipeline
 Clean and professional Streamlit interface
 
